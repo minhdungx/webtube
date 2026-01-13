@@ -6,17 +6,33 @@
 //
 
 import UIKit
+import AVFoundation
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
+    func application(
+            _ application: UIApplication,
+            didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+        ) -> Bool {
 
+            setupAudioSession()
+            return true
+        }
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
-        return true
-    }
-
+        private func setupAudioSession() {
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(
+                    .playback,
+                    mode: .moviePlayback,
+                    options: []
+                )
+                try session.setActive(true)
+            } catch {
+                print("❌ AVAudioSession error:", error)
+            }
+        }
     // MARK: UISceneSession Lifecycle
 
     func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
