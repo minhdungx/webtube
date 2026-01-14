@@ -39,150 +39,129 @@ class VideoWebViewController: UIViewController {
         // JS workaround chống pause khi background
         let scriptSource = """
         (function () {
-            console.log("🎬 Injected Video Visibility Script");
+            console.log("🎬 Injected Smart Video Controller");
 
             /* ==============================
                1. VISIBILITY & FOCUS HACK
                ============================== */
-
-            Object.defineProperty(document, 'hidden', {
-                configurable: true,
-                get: () => false
-            });
-
-            Object.defineProperty(document, 'visibilityState', {
-                configurable: true,
-                get: () => 'visible'
-            });
-
-            Object.defineProperty(document, 'webkitVisibilityState', {
-                configurable: true,
-                get: () => 'visible'
-            });
+            Object.defineProperty(document, 'hidden', { get: () => false });
+            Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+            Object.defineProperty(document, 'webkitVisibilityState', { get: () => 'visible' });
 
             window.addEventListener('blur', e => e.stopPropagation(), true);
             window.addEventListener('focus', e => e.stopPropagation(), true);
 
             /* ==============================
-               2. VIDEO RESUME LOGIC (SAFE)
+               2. STATE MANAGEMENT
                ============================== */
-
-            let hasUserInteracted = false;
+            let isManualPaused = false; // QUAN TRỌNG: Đánh dấu user chủ động dừng
             let autoStartTimer = null;
 
-            function getVideo() {
-                return document.querySelector('video');
-            }
+            function getVideo() { return document.querySelector('video'); }
 
+            /* ==============================
+               3. VIDEO RESUME LOGIC (SỬA ĐỔI)
+               ============================== */
             function ensureVideoPlaying(reason = "") {
                 const v = getVideo();
-                if (!v) return;
-        
+                if (!v || v.readyState < 2) return;
+
+                // Nếu user đã chủ động pause, tuyệt đối không ép play lại
+                if (isManualPaused) return; 
+
                 if (v.muted) v.muted = false;
-
-                if (v.readyState < 2) return;
-
-                // ❗ Không ép play nếu user chủ động pause
-                if (v.paused && hasUserInteracted) {
-                    console.log("▶️ Resume video", reason);
+                if (v.paused) {
                     v.play().catch(() => {});
                 }
-
-                
             }
 
             function startAutoStartLoop() {
                 if (autoStartTimer) return;
-
-                let unmuteAttempts = 0; // Đếm số lần thử unmute
-
+                
+                let stableCount = 0;
                 autoStartTimer = setInterval(() => {
-                    const v = document.querySelector('video');
+                    const v = getVideo();
                     if (!v) return;
 
-                    // 1. Kiểm tra nếu video đã sẵn sàng dữ liệu
+                    // Nếu user bấm pause trong lúc đang loop, dừng loop ngay
+                    if (isManualPaused) {
+                        clearInterval(autoStartTimer);
+                        autoStartTimer = null;
+                        return;
+                    }
+
                     if (v.readyState >= 2) {
-                        
-                        // 2. ÉP BẬT TIẾNG
+                        // Ép bật tiếng
                         if (v.muted) {
                             v.muted = false;
                             v.volume = 1.0;
                         }
 
-                        // 3. ÉP PHÁT VIDEO
+                        // Ép phát
                         if (v.paused) {
-                            v.play().catch(e => console.log("Chờ tương tác..."));
+                            v.play().catch(() => {});
                         }
 
-                        // 4. KIỂM TRA ĐIỀU KIỆN DỪNG
-                        // Nếu video đang chạy VÀ đã có tiếng thành công
-                        if (!v.paused && v.muted === false) {
-                            unmuteAttempts++;
-                            
-                            // Thử giữ trạng thái này trong 1 giây (2 lần lặp) để tránh YouTube tự mute lại
-                            if (unmuteAttempts >= 2) {
-                                console.log("✅ Đã bật tiếng thành công!");
+                        // Kiểm tra điều kiện dừng: Video đang chạy và không mute
+                        if (!v.paused && !v.muted) {
+                            stableCount++;
+                            if (stableCount >= 2) { // Ổn định trong 1 giây
+                                console.log("✅ Video Autostart & Unmute thành công");
                                 clearInterval(autoStartTimer);
                                 autoStartTimer = null;
                             }
                         }
                     }
-                }, 500); // Kiểm tra mỗi 0.5 giây
+                }, 500);
             }
 
             /* ==============================
-               3. USER INTENT TRACKING
+               4. USER INTENT TRACKING (SỬA ĐỔI)
                ============================== */
-
-            document.addEventListener('pointerdown', () => {
-                hasUserInteracted = true;
+            
+            // Bắt sự kiện pause để biết user có chủ động dừng không
+            document.addEventListener('pause', () => {
+                // Nếu video bị pause khi màn hình đang được focus -> User bấm dừng
+                if (document.hasFocus()) {
+                    isManualPaused = true;
+                    console.log("⏸ User manual pause");
+                }
             }, true);
 
+            // Bắt sự kiện play để reset trạng thái
             document.addEventListener('play', () => {
-                hasUserInteracted = true;
+                isManualPaused = false;
+                console.log("▶️ User manual play");
             }, true);
 
             /* ==============================
-               4. VISIBILITY / PAGE EVENTS
+               5. EVENTS & SPA SUPPORT
                ============================== */
-
             document.addEventListener('visibilitychange', () => {
-                console.log("👀 visibilitychange");
-                setTimeout(() => ensureVideoPlaying("visibility"), 300);
-            });
-
-            window.addEventListener('pagehide', () => {
-                console.log("📴 pagehide");
+                // Chỉ tự resume khi ẩn app nếu user TRƯỚC ĐÓ đang xem (không phải đang pause)
+                if (!isManualPaused) {
+                    setTimeout(() => ensureVideoPlaying("visibility"), 300);
+                }
             });
 
             window.addEventListener('pageshow', () => {
-                console.log("📺 pageshow");
+                isManualPaused = false; // Reset khi trang mới hiện ra
                 setTimeout(startAutoStartLoop, 500);
             });
 
-            /* ==============================
-               5. SPA / URL CHANGE SUPPORT
-               ============================== */
-
+            // Hỗ trợ khi chuyển video khác trên YouTube (SPA)
             let lastURL = location.href;
-
             setInterval(() => {
                 if (location.href !== lastURL) {
                     lastURL = location.href;
-                    console.log("🔄 URL changed", lastURL);
-                    hasUserInteracted = false;
+                    isManualPaused = false; // Reset để video mới tự phát có tiếng
                     setTimeout(startAutoStartLoop, 1000);
                 }
             }, 800);
 
-            /* ==============================
-               6. INITIAL START
-               ============================== */
-
+            // Khởi chạy lần đầu
             setTimeout(startAutoStartLoop, 1000);
-
         })();
-
         """
         
         let script = WKUserScript(
