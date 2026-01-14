@@ -169,45 +169,9 @@ class VideoWebViewController: UIViewController {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
-        let playScript = """
-// 1. Cấu hình để chạy nền (không thay đổi)
-Object.defineProperty(document, 'hidden', { value: false });
-Object.defineProperty(document, 'visibilityState', { value: 'visible' });
-document.addEventListener('visibilitychange', function(e) {
-    e.stopImmediatePropagation();
-}, true);
 
-// 2. Logic khởi tạo video thông minh
-var autoStartInterval = setInterval(function() {
-    var v = document.querySelector('video');
-    
-    // Kiểm tra nếu video đã sẵn sàng (readyState >= 2)
-    if (v && v.readyState >= 2) {
-        // Nếu video đang pause thì mới gọi play (để khởi động lần đầu)
-        if (v.paused) {
-            v.play();
-        }
-        
-        // Luôn đảm bảo bỏ tắt tiếng ở lần đầu này
-        v.muted = false;
-        
-        // QUAN TRỌNG: Nếu video đã bắt đầu chạy (không còn paused nữa)
-        // thì xóa bỏ vòng lặp này ngay lập tức để người dùng có thể bấm Dừng thủ công
-        if (!v.paused) {
-            console.log("✅ Video đã phát, dừng kiểm tra tự động.");
-            clearInterval(autoStartInterval);
-        }
-    }
-}, 500); // Kiểm tra mỗi 0.5 giây cho mượt
-"""
-        let script2 = WKUserScript(source: playScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        
-
-                
-        
         let contentController = WKUserContentController()
         contentController.addUserScript(script)
-//        contentController.addUserScript(script2)
 
         config.userContentController = contentController
 
