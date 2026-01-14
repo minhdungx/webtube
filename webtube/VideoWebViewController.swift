@@ -1,105 +1,101 @@
 import UIKit
 import WebKit
 
+protocol VideoWebViewDelegate: AnyObject {
+    func videoDidHide()
+}
+
 class VideoWebViewController: UIViewController {
-    
+
+    weak var delegate: VideoWebViewDelegate?
     private var webView: WKWebView!
     private var videoURL: URL
-    
+
     init(videoURL: URL) {
         self.videoURL = videoURL
         super.init(nibName: nil, bundle: nil)
     }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
+
+    required init?(coder: NSCoder) { fatalError() }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
-        
-        setupNavigationBar()
+
         setupWebView()
-        loadVideo()
-    }
-    
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        navigationController?.interactivePopGestureRecognizer?.delegate = self
-        navigationController?.interactivePopGestureRecognizer?.isEnabled = true
+        setupGesture()
+        loadVideo(url: videoURL)
     }
 
-    
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        navigationController?.setNavigationBarHidden(false, animated: animated)
-    }
-
-    private func setupNavigationBar() {
-        title = "Video"
-        // Navigation bar sẽ tự động có nút back khi push
-    }
-    
+    // MARK: - WebView
     private func setupWebView() {
         let config = WKWebViewConfiguration()
-        
-        // Media config giống browser
         config.allowsInlineMediaPlayback = true
         config.allowsPictureInPictureMediaPlayback = true
-        config.mediaTypesRequiringUserActionForPlayback = []
-        
-        // JS workaround chống pause khi background
-        let scriptSource = """
-        Object.defineProperty(document, 'hidden', { value: false });
-        Object.defineProperty(document, 'visibilityState', { value: 'visible' });
-        
-        document.addEventListener('visibilitychange', function(e) {
-            e.stopImmediatePropagation();
-        }, true);
-        """
-        
-        let script = WKUserScript(
-            source: scriptSource,
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        
-        let contentController = WKUserContentController()
-        contentController.addUserScript(script)
-        config.userContentController = contentController
-        
-        webView = WKWebView(frame: .zero, configuration: config)
-        webView.translatesAutoresizingMaskIntoConstraints = false
-        webView.backgroundColor = .black
-        webView.isOpaque = false
-        webView.navigationDelegate = self
-        
+
+        webView = WKWebView(frame: view.bounds, configuration: config)
+        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(webView)
-        
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            webView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
-        ])
     }
-    
-    private func loadVideo() {
-        let request = URLRequest(url: videoURL)
-        webView.load(request)
+
+    func loadVideo(url: URL) {
+        videoURL = url
+        webView.load(URLRequest(url: url))
+    }
+
+    // MARK: - Gesture
+    private func setupGesture() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
+    }
+
+    @objc private func handlePan(_ g: UIPanGestureRecognizer) {
+        let t = g.translation(in: view)
+
+        guard t.y > 0 else { return }
+
+        switch g.state {
+        case .changed:
+            view.transform = CGAffineTransform(translationX: 0, y: t.y)
+
+        case .ended:
+            if t.y > 120 {
+                hide()
+            } else {
+                show()
+            }
+        default: break
+        }
+    }
+
+    // MARK: - Show / Hide
+    func hide() {
+        UIView.animate(withDuration: 0.25, animations: {
+            self.view.transform = CGAffineTransform(
+                translationX: 0,
+                y: self.view.bounds.height
+            )
+            self.view.alpha = 0
+        }) { _ in
+            self.view.isHidden = true
+            self.delegate?.videoDidHide()
+        }
+    }
+
+    func show() {
+        view.isHidden = false
+        UIView.animate(withDuration: 0.25) {
+            self.view.transform = .identity
+            self.view.alpha = 1
+        }
     }
 }
 
-extension VideoWebViewController: WKNavigationDelegate {
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("✅ Video loaded:", webView.url?.absoluteString ?? "")
-    }
-}
-
+// MARK: - Gesture Delegate
 extension VideoWebViewController: UIGestureRecognizerDelegate {
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        return true
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }
-

@@ -1,60 +1,40 @@
 import UIKit
 import WebKit
+import AVFoundation
 
 class ViewController: UIViewController {
 
     private var webView: WKWebView!
-    private var isPushingVideo = false
-
+    private var videoPlayerVC: VideoWebViewController?
+    private var showVideoButton: UIButton!
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .black
+        view.backgroundColor = .white
 
+//        setupAudioSession()
         setupWebView()
+        setupShowVideoButton()
         loadYouTubeHome()
     }
-    
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // Ẩn navigation bar trên màn hình chính
-        navigationController?.setNavigationBarHidden(true, animated: animated)
-        isPushingVideo = false
-    }
-    
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        // Hiện lại navigation bar khi push sang màn hình khác
-        navigationController?.setNavigationBarHidden(false, animated: animated)
-    }
-    
-    deinit {
-        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "videoTapped")
-    }
 
+//    // MARK: - Audio Session (để video không tắt)
+//    private func setupAudioSession() {
+//        try? AVAudioSession.sharedInstance().setCategory(.playback)
+//        try? AVAudioSession.sharedInstance().setActive(true)
+//    }
+
+    // MARK: - WebView (Feed)
     private func setupWebView() {
         let config = WKWebViewConfiguration()
-
-        // Media config giống browser
         config.allowsInlineMediaPlayback = true
         config.allowsPictureInPictureMediaPlayback = true
-        config.mediaTypesRequiringUserActionForPlayback = []
 
-        // JS workaround chống pause khi background
-        let scriptSource = """
-        Object.defineProperty(document, 'hidden', { value: false });
-        Object.defineProperty(document, 'visibilityState', { value: 'visible' });
-
-        document.addEventListener('visibilitychange', function(e) {
-            e.stopImmediatePropagation();
-        }, true);
-        """
-        
-        let scriptSource2 = """
+        // JS bắt click video
+        let js = """
         document.addEventListener('click', function(e) {
             let el = e.target;
             while (el && el.tagName !== 'A') el = el.parentElement;
-
             if (el && el.href && el.href.includes('/watch')) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -64,37 +44,25 @@ class ViewController: UIViewController {
         """
 
         let script = WKUserScript(
-            source: scriptSource,
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        
-        let script2 = WKUserScript(
-            source: scriptSource2,
+            source: js,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
 
-        let contentController = WKUserContentController()
-        contentController.addUserScript(script)
-        contentController.addUserScript(script2)
-        contentController.add(self, name: "videoTapped")
-        config.userContentController = contentController
+        let content = WKUserContentController()
+        content.addUserScript(script)
+        content.add(self, name: "videoTapped")
+        config.userContentController = content
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
-        webView.backgroundColor = .black
-        webView.isOpaque = false
-        webView.navigationDelegate = self
-
         view.addSubview(webView)
 
-        // ✅ Ghim vào Safe Area
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            webView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
 
@@ -102,28 +70,72 @@ class ViewController: UIViewController {
         let url = URL(string: "https://m.youtube.com")!
         webView.load(URLRequest(url: url))
     }
-}
 
-extension ViewController: WKNavigationDelegate {
-    
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("✅ Loaded:", webView.url?.absoluteString ?? "")
+    // MARK: - Floating Button
+    private func setupShowVideoButton() {
+        let btn = UIButton(type: .system)
+        btn.setTitle("▶︎ Video", for: .normal)
+        btn.backgroundColor = UIColor.black.withAlphaComponent(0.85)
+        btn.tintColor = .white
+        btn.layer.cornerRadius = 22
+        btn.addTarget(self, action: #selector(showVideoTapped), for: .touchUpInside)
+
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(btn)
+
+        NSLayoutConstraint.activate([
+            btn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            btn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+            btn.widthAnchor.constraint(equalToConstant: 100),
+            btn.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        btn.isHidden = true
+        showVideoButton = btn
+    }
+
+    @objc private func showVideoTapped() {
+        videoPlayerVC?.show()
+        showVideoButton.isHidden = true
+    }
+
+    // MARK: - Show Video
+    private func showVideo(url: URL) {
+        if let vc = videoPlayerVC {
+            vc.loadVideo(url: url)
+            vc.show()
+            showVideoButton.isHidden = true
+            return
+        }
+
+        let vc = VideoWebViewController(videoURL: url)
+        vc.delegate = self
+        vc.view.frame = view.bounds
+
+        addChild(vc)
+        view.addSubview(vc.view)
+        vc.didMove(toParent: self)
+
+        videoPlayerVC = vc
+        showVideoButton.isHidden = true
     }
 }
 
+// MARK: - JS Message
 extension ViewController: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-
-        guard !isPushingVideo,
-              message.name == "videoTapped",
+        guard message.name == "videoTapped",
               let urlString = message.body as? String,
               let url = URL(string: urlString) else { return }
-        
-        isPushingVideo = true
 
-        let vc = VideoWebViewController(videoURL: url)
-        navigationController?.pushViewController(vc, animated: true)
+        showVideo(url: url)
     }
 }
 
+// MARK: - Video Delegate
+extension ViewController: VideoWebViewDelegate {
+    func videoDidHide() {
+        showVideoButton.isHidden = false
+    }
+}
