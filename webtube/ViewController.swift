@@ -10,7 +10,7 @@ class ViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .white
+        view.backgroundColor = .clear
 
 //        setupAudioSession()
         setupWebView()
@@ -56,6 +56,8 @@ class ViewController: UIViewController {
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.backgroundColor = .clear
+        webView.isOpaque = false
         view.addSubview(webView)
 
         NSLayoutConstraint.activate([
@@ -85,7 +87,7 @@ class ViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             btn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            btn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+            btn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
             btn.widthAnchor.constraint(equalToConstant: 100),
             btn.heightAnchor.constraint(equalToConstant: 44)
         ])

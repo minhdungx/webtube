@@ -32,10 +32,40 @@ class VideoWebViewController: UIViewController {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.allowsPictureInPictureMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        
+        // JS workaround chống pause khi background
+        let scriptSource = """
+        Object.defineProperty(document, 'hidden', { value: false });
+        Object.defineProperty(document, 'visibilityState', { value: 'visible' });
+        
+        document.addEventListener('visibilitychange', function(e) {
+            e.stopImmediatePropagation();
+        }, true);
+        """
+        
+        let script = WKUserScript(
+            source: scriptSource,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        
+        let contentController = WKUserContentController()
+        contentController.addUserScript(script)
+        config.userContentController = contentController
 
-        webView = WKWebView(frame: view.bounds, configuration: config)
-        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView = WKWebView(frame: .zero, configuration: config)
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.backgroundColor = .black
+
         view.addSubview(webView)
+
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
     }
 
     func loadVideo(url: URL) {
@@ -94,6 +124,34 @@ class VideoWebViewController: UIViewController {
 
 // MARK: - Gesture Delegate
 extension VideoWebViewController: UIGestureRecognizerDelegate {
+    
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+
+           let location = gestureRecognizer.location(in: view)
+           let halfHeight = view.bounds.height / 3
+
+           // ❌ Chạm ở nửa dưới → không bắt gesture
+           if location.y > halfHeight {
+               return false
+           }
+
+           // (GIỮ LẠI logic cũ nếu có)
+           let velocity = (gestureRecognizer as! UIPanGestureRecognizer)
+               .velocity(in: view)
+
+           // ❌ Vuốt lên → không bắt
+           if velocity.y < 0 {
+               return false
+           }
+
+           // ❌ Web chưa ở top → không bắt
+//           if webView.scrollView.contentOffset.y > 0 {
+//               return false
+//           }
+
+           return true
+       }
+    
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         true
