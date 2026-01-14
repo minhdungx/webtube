@@ -1,4 +1,5 @@
 import UIKit
+import AVFAudio
 import WebKit
 
 protocol VideoWebViewDelegate: AnyObject {
@@ -34,6 +35,7 @@ class VideoWebViewController: UIViewController {
         config.allowsPictureInPictureMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         
+        
         // JS workaround chống pause khi background
         let scriptSource = """
         Object.defineProperty(document, 'hidden', { value: false });
@@ -49,9 +51,41 @@ class VideoWebViewController: UIViewController {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
+        let playScript = """
+            // Tự động tìm tag video và bấm play nếu nó bị pause khi vừa load
+            setInterval(function() {
+                var v = document.querySelector('video');
+                if (v && v.paused) {
+                    v.play();
+                }
+            }, 1000);
+        """
+        let script2 = WKUserScript(source: playScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        
+        let unmuteScriptSource = """
+            setInterval(function() {
+                var videos = document.querySelectorAll('video');
+                for (var i = 0; i < videos.length; i++) {
+                    if (videos[i].muted) {
+                        videos[i].muted = false;
+                        videos[i].volume = 1.0;
+                    }
+                }
+            }, 1000);
+        """
+
+        let unmuteScript = WKUserScript(
+            source: unmuteScriptSource,
+            injectionTime: .atDocumentEnd, // Chạy sau khi trang web đã load xong
+            forMainFrameOnly: true
+        )
+                
         
         let contentController = WKUserContentController()
         contentController.addUserScript(script)
+        contentController.addUserScript(script2)
+        contentController.addUserScript(unmuteScript)
+
         config.userContentController = contentController
 
         webView = WKWebView(frame: .zero, configuration: config)
@@ -69,6 +103,7 @@ class VideoWebViewController: UIViewController {
     }
 
     func loadVideo(url: URL) {
+//        try? AVAudioSession.sharedInstance().setActive(true)
         videoURL = url
         webView.load(URLRequest(url: url))
     }
