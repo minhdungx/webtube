@@ -119,21 +119,6 @@ class VideoWebViewController: UIViewController {
                4. USER INTENT TRACKING (SỬA ĐỔI)
                ============================== */
             
-            // Bắt sự kiện pause để biết user có chủ động dừng không
-            document.addEventListener('pause', () => {
-                // Nếu video bị pause khi màn hình đang được focus -> User bấm dừng
-                if (document.hasFocus()) {
-                    isManualPaused = true;
-                    console.log("⏸ User manual pause");
-                }
-            }, true);
-
-            // Bắt sự kiện play để reset trạng thái
-            document.addEventListener('play', () => {
-                isManualPaused = false;
-                console.log("▶️ User manual play");
-            }, true);
-
             /* ==============================
                5. EVENTS & SPA SUPPORT
                ============================== */
@@ -188,6 +173,22 @@ class VideoWebViewController: UIViewController {
             webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
+    
+//    // Bắt sự kiện pause để biết user có chủ động dừng không
+//    document.addEventListener('pause', () => {
+//        // Nếu video bị pause khi màn hình đang được focus -> User bấm dừng
+//        if (document.hasFocus()) {
+//            isManualPaused = true;
+//            console.log("⏸ User manual pause");
+//        }
+//    }, true);
+//
+//    // Bắt sự kiện play để reset trạng thái
+//    document.addEventListener('play', () => {
+//        isManualPaused = false;
+//        console.log("▶️ User manual play");
+//    }, true);
+
 
     func loadVideo(url: URL) {
 //        try? AVAudioSession.sharedInstance().setActive(true)
