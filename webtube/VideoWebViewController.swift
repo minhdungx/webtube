@@ -93,21 +93,41 @@ class VideoWebViewController: UIViewController {
 
             function startAutoStartLoop() {
                 if (autoStartTimer) return;
-        
-                let stableCount = 0;
+
+                let unmuteAttempts = 0; // Đếm số lần thử unmute
 
                 autoStartTimer = setInterval(() => {
-                    const v = getVideo();
+                    const v = document.querySelector('video');
                     if (!v) return;
 
-                    if (v.readyState >= 2 && !v.paused) {
-                        console.log("✅ Video running – stop autostart");
-                        clearInterval(autoStartTimer);
-                        autoStartTimer = null;
-                    } else {
-                        ensureVideoPlaying("autostart");
+                    // 1. Kiểm tra nếu video đã sẵn sàng dữ liệu
+                    if (v.readyState >= 2) {
+                        
+                        // 2. ÉP BẬT TIẾNG
+                        if (v.muted) {
+                            v.muted = false;
+                            v.volume = 1.0;
+                        }
+
+                        // 3. ÉP PHÁT VIDEO
+                        if (v.paused) {
+                            v.play().catch(e => console.log("Chờ tương tác..."));
+                        }
+
+                        // 4. KIỂM TRA ĐIỀU KIỆN DỪNG
+                        // Nếu video đang chạy VÀ đã có tiếng thành công
+                        if (!v.paused && v.muted === false) {
+                            unmuteAttempts++;
+                            
+                            // Thử giữ trạng thái này trong 1 giây (2 lần lặp) để tránh YouTube tự mute lại
+                            if (unmuteAttempts >= 2) {
+                                console.log("✅ Đã bật tiếng thành công!");
+                                clearInterval(autoStartTimer);
+                                autoStartTimer = null;
+                            }
+                        }
                     }
-                }, 500);
+                }, 500); // Kiểm tra mỗi 0.5 giây
             }
 
             /* ==============================
